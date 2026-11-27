@@ -1,6 +1,7 @@
 package com.morganello98.planner;
 
 import android.content.Intent;
+import android.content.ActivityNotFoundException;
 import android.provider.AlarmClock;
 
 import com.getcapacitor.Plugin;
@@ -26,16 +27,15 @@ public class AlarmBridge extends Plugin {
         intent.putExtra(AlarmClock.EXTRA_MINUTES, minute);
         intent.putExtra(AlarmClock.EXTRA_MESSAGE, label);
 
-        if (intent.resolveActivity(getContext().getPackageManager()) == null) {
-            call.reject("На устройстве не найдено приложение для создания будильников");
-            return;
-        }
-
+        // Use the Activity directly: resolveActivity() can return null on Android 11+
+        // because package visibility hides matching clock apps from this package.
         try {
-            getContext().startActivity(intent);
+            getActivity().startActivity(intent);
             call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("Android не нашёл приложение для создания будильников", e);
         } catch (Exception e) {
-            call.reject("Не удалось передать будильник приложению «Часы»", e);
+            call.reject("Не удалось открыть экран создания будильника", e);
         }
     }
 }
