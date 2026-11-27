@@ -219,9 +219,12 @@ function alDraw(){const k=curK(),A=alarms(k),a=day0(k);
  }).join('');
  DL().innerHTML=`<div class="g"><h3>Будильники: ${wd(a)} ${dm(a)}</h3><span><button class="b" onclick="alNav(-1)">◀</button> <button class="b" onclick="alNav(1)">▶</button></span></div>`+(rows||'<p class="m">В этот день будильники не нужны.</p>')+`<p class="m">Стандартные «Часы» Android принимают время, но не конкретную дату. Поэтому доступно только ближайшее срабатывание этого времени — не ставь заранее будильники на дальние даты.</p><p><button class="b" onclick="alCopy()">Скопировать</button> <button class="b" onclick="DL().close()">Закрыть</button></p>`;
 }
+const AlarmBridge = window.Capacitor && typeof window.Capacitor.registerPlugin === 'function'
+ ? window.Capacitor.registerPlugin('AlarmBridge')
+ : null;
 async function addNativeAlarm(hour,minute,index){
- const bridge=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.AlarmBridge;
- if(!bridge||!bridge.createAlarm){alert('Нативная интеграция доступна только в установленном Android-приложении.');return}
+ const bridge=AlarmBridge || (window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.AlarmBridge);
+ if(!bridge||!bridge.createAlarm){alert('Не удалось подключить системную функцию будильника. Перезапусти приложение или установи актуальную версию.');return}
  const item=alarms(curK())[index];
  try{await bridge.createAlarm({hour,minute,label:item?item.l:'Планировщик режима'});}catch(e){alert('Не удалось передать будильник в «Часы»: '+(e&&e.message?e.message:e))}
 }
