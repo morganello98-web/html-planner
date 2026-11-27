@@ -211,7 +211,21 @@ function alarms(k){const A=[];
  return A.filter(a=>K(a.t)==k).sort((a,b)=>a.t-b.t)}
 const DL=()=>document.getElementById('dlg'),curK=()=>keys()[Math.min(S.sel,S.days-1)];
 function alDraw(){const k=curK(),A=alarms(k),a=day0(k);
- DL().innerHTML=`<div class="g"><h3>Будильники: ${wd(a)} ${dm(a)}</h3><span><button class="b" onclick="alNav(-1)">◀</button> <button class="b" onclick="alNav(1)">▶</button></span></div>`+(A.map(x=>`<div class="al"><b>${T(x.t)}</b><div>${x.l}<br><small>${x.n}</small></div></div>`).join('')||'<p class="m">В этот день будильники не нужны.</p>')+`<p><button class="b p" onclick="alCopy()">Скопировать</button> <button class="b" onclick="DL().close()">Закрыть</button></p>`}
+ const now=new Date(), next=new Date(now); next.setHours(0,0,0,0);
+ const rows=A.map(x=>{
+  const h=Math.floor(((x.t%DAY)+DAY)%DAY/60),m=((x.t%DAY)+DAY)%60;
+  const target=new Date();target.setHours(h,m,0,0);if(target.getTime()<=Date.now())target.setDate(target.getDate()+1);
+  const can=K(Math.floor(target.getTime()/60000))===K(x.t);
+  const label=String(x.l).replace(/\\\\/g,'\\\\\\\\').replace(/'/g,"\\\\'");
+  return `<div class="al"><b>${T(x.t)}</b><div style="flex:1">${x.l}<br><small>${x.n}</small><br>${can?'<button class="b p" onclick="addNativeAlarm('+h+','+m+',\\''+label+'\\')">В «Часы»</button>':'<small>Нельзя задать эту дату через стандартные «Часы»</small>'}</div></div>`;
+ }).join('');
+ DL().innerHTML=`<div class="g"><h3>Будильники: ${wd(a)} ${dm(a)}</h3><span><button class="b" onclick="alNav(-1)">◀</button> <button class="b" onclick="alNav(1)">▶</button></span></div>`+(rows||'<p class="m">В этот день будильники не нужны.</p>')+`<p class="m">Стандартные «Часы» Android принимают время, но не конкретную дату. Поэтому доступно только ближайшее срабатывание этого времени — не ставь заранее будильники на дальние даты.</p><p><button class="b" onclick="alCopy()">Скопировать</button> <button class="b" onclick="DL().close()">Закрыть</button></p>`;
+}
+async function addNativeAlarm(hour,minute,label){
+ const bridge=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.AlarmBridge;
+ if(!bridge||!bridge.createAlarm){alert('Нативная интеграция доступна только в установленном Android-приложении.');return}
+ try{await bridge.createAlarm({hour,minute,label});}catch(e){alert('Не удалось передать будильник в «Часы»: '+(e&&e.message?e.message:e))}
+}
 const alOpen=()=>{alDraw();DL().showModal()},alNav=d=>{S.sel=Math.max(0,Math.min(S.days-1,S.sel+d));R();alDraw()};
 function alCopy(){const t=alarms(curK()).map(a=>`${T(a.t)} ${a.l}`).join('\n'),ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');alert('Скопировано')}catch(e){prompt('Скопируйте:',t)}ta.remove()}
 R();
