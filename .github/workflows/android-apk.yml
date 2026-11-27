@@ -1,0 +1,62 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare web app
+        run: |
+          mkdir -p www
+          cp "планировщик.html" www/index.html
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Add native alarm integration
+        run: |
+          mkdir -p android/app/src/main/java/com/morganello98/planner
+          cp android-native/AlarmBridge.java android/app/src/main/java/com/morganello98/planner/AlarmBridge.java
+          cp android-native/MainActivity.java android/app/src/main/java/com/morganello98/planner/MainActivity.java
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.SET_ALARM" />' android/app/src/main/AndroidManifest.xml
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: metro-planner-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
