@@ -218,7 +218,12 @@ function alDraw(){const k=curK(),A=alarms(k),a=day0(k);
   const can=K(Math.floor(target.getTime()/60000))===K(x.t);
   return `<div class="al"><b>${T(x.t)}</b><div style="flex:1">${x.l}<br><small>${x.n}</small><br>${can?'<button class="b p" onclick="addNativeAlarm('+h+','+m+','+i+')">⏰ Добавить будильник</button>':'<small style="color:var(--m)">⚠ Будильник для этого времени можно создать только в день события</small>'}</div></div>`;
  }).join('');
- DL().innerHTML=`<div class="g"><h3>Будильники: ${wd(a)} ${dm(a)}</h3><span><button class="b" onclick="alNav(-1)">◀</button> <button class="b" onclick="alNav(1)">▶</button></span></div>`+(rows||'<p class="m">В этот день будильники не нужны.</p>')+`<div class="card" style="background:var(--bg);margin:12px 0"><small><b>Как это работает:</b><br>• Нажмите «⏰ Добавить будильник» для нужного события<br>• Откроется приложение Samsung «Часы» с готовыми данными<br>• Проверьте время и название, затем нажмите «Сохранить»<br>• Будильник сохранится в системном приложении «Часы»<br><br><b>Важно:</b> Android «Часы» не поддерживают привязку к конкретной дате. Добавляйте будильники в день события или накануне.</small></div><p><button class="b" onclick="alCopy()">Скопировать список</button> <button class="b" onclick="DL().close()">Закрыть</button></p>`;
+ const hasAvailable=A.some(x=>{
+  const h=Math.floor(((x.t%DAY)+DAY)%DAY/60),m=((x.t%DAY)+DAY)%60;
+  const target=new Date();target.setHours(h,m,0,0);if(target.getTime()<=Date.now())target.setDate(target.getDate()+1);
+  return K(Math.floor(target.getTime()/60000))===K(x.t);
+ });
+ DL().innerHTML=`<div class="g"><h3>Будильники: ${wd(a)} ${dm(a)}</h3><span><button class="b" onclick="alNav(-1)">◀</button> <button class="b" onclick="alNav(1)">▶</button></span></div>`+(rows||'<p class="m">В этот день будильники не нужны.</p>')+`<div class="card" style="background:var(--bg);margin:12px 0"><small><b>Как это работает:</b><br>• Нажмите «⏰ Добавить будильник» для нужного события<br>• Или нажмите «⏰ Добавить все» для всех будильников сразу<br>• Откроется приложение Samsung «Часы» с готовыми данными<br>• Проверьте время и название, затем нажмите «Сохранить»<br>• Будильник сохранится в системном приложении «Часы»<br><br><b>Важно:</b> Android «Часы» не поддерживают привязку к конкретной дате. Добавляйте будильники в день события или накануне.</small></div><p>${hasAvailable?'<button class="b p" onclick="addAllAlarms()">⏰ Добавить все будильники</button> ':''}<button class="b" onclick="alCopy()">Скопировать список</button> <button class="b" onclick="DL().close()">Закрыть</button></p>`;
 }
 async function addNativeAlarm(hour,minute,index){
  const bridge=window.AlarmBridge;
@@ -231,6 +236,28 @@ async function addNativeAlarm(hour,minute,index){
  }catch(e){
   alert('Не удалось открыть приложение «Часы».\n\nОшибка: '+(e&&e.message?e.message:String(e))+'\n\nУбедитесь, что на устройстве установлено приложение для управления будильниками.');
  }
+}
+async function addAllAlarms(){
+ const bridge=window.AlarmBridge;
+ if(!bridge||!bridge.createAlarm){alert('Функция добавления будильников недоступна.\n\nВозможные причины:\n• Приложение запущено в браузере (нужно установить APK)\n• Плагин не загрузился\n\nПерезапустите приложение или переустановите его.');return}
+ const k=curK(),A=alarms(k);
+ const available=A.filter(x=>{
+  const h=Math.floor(((x.t%DAY)+DAY)%DAY/60),m=((x.t%DAY)+DAY)%60;
+  const target=new Date();target.setHours(h,m,0,0);if(target.getTime()<=Date.now())target.setDate(target.getDate()+1);
+  return K(Math.floor(target.getTime()/60000))===K(x.t);
+ });
+ if(!available.length){alert('Нет доступных будильников для добавления в этот день.');return}
+ if(!confirm(`Добавить все будильники?\n\nБудет последовательно открыто окон «Часы»: ${available.length}\n\nКаждое окно нужно будет сохранить вручную.\n\nПродолжить?`))return;
+ let added=0,failed=0;
+ for(const x of available){
+  const h=Math.floor(((x.t%DAY)+DAY)%DAY/60),m=((x.t%DAY)+DAY)%60;
+  try{
+   await bridge.createAlarm({hour:h,minute:m,label:x.l});
+   added++;
+   if(added<available.length)await new Promise(r=>setTimeout(r,800));
+  }catch(e){failed++;if(!confirm(`Ошибка при добавлении будильника "${x.l}" (${P2(h)}:${P2(m)}).\n\nОшибка: ${e&&e.message?e.message:String(e)}\n\nПродолжить с оставшимися будильниками?`))break}
+ }
+ alert(`Добавление завершено.\n\nОткрыто окон «Часы»: ${added}\nОшибок: ${failed}\n\nПроверьте все будильники в приложении «Часы» и сохраните их.`);
 }
 const alOpen=()=>{alDraw();DL().showModal()},alNav=d=>{S.sel=Math.max(0,Math.min(S.days-1,S.sel+d));R();alDraw()};
 function alCopy(){const t=alarms(curK()).map(a=>`${T(a.t)} ${a.l}`).join('\n'),ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');alert('Скопировано')}catch(e){prompt('Скопируйте:',t)}ta.remove()}
