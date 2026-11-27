@@ -25,6 +25,7 @@ input,select,textarea{font:inherit;padding:7px;border:1px solid var(--b);border-
 .kv{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--b)}.kv:first-of-type{border:0}
 dialog{border:1px solid var(--b);border-radius:12px;background:var(--c);color:var(--t);width:min(92vw,420px);padding:14px}dialog::backdrop{background:#0008}.al{display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--b)}.al b{font-size:26px;font-variant-numeric:tabular-nums;width:76px;flex:none}
 </style></head><body><main><nav id="nav"></nav><div id="app"></div></main><dialog id="dlg"></dialog>
+<script src="alarm-bridge.js"></script>
 <script>
 const DAY=1440,LS='planner_v1',P2=n=>String(n).padStart(2,'0');
 const D=m=>new Date(m*60000),T=m=>{const d=D(m);return P2(d.getHours())+':'+P2(d.getMinutes())};
@@ -219,9 +220,7 @@ function alDraw(){const k=curK(),A=alarms(k),a=day0(k);
  }).join('');
  DL().innerHTML=`<div class="g"><h3>Будильники: ${wd(a)} ${dm(a)}</h3><span><button class="b" onclick="alNav(-1)">◀</button> <button class="b" onclick="alNav(1)">▶</button></span></div>`+(rows||'<p class="m">В этот день будильники не нужны.</p>')+`<p class="m">Стандартные «Часы» Android принимают время, но не конкретную дату. Поэтому доступно только ближайшее срабатывание этого времени — не ставь заранее будильники на дальние даты.</p><p><button class="b" onclick="alCopy()">Скопировать</button> <button class="b" onclick="DL().close()">Закрыть</button></p>`;
 }
-const AlarmBridge = window.Capacitor && typeof window.Capacitor.registerPlugin === 'function'
- ? window.Capacitor.registerPlugin('AlarmBridge')
- : null;
+const AlarmBridge = window.AlarmBridge || null;
 async function addNativeAlarm(hour,minute,index){
  const bridge=AlarmBridge || (window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.AlarmBridge);
  if(!bridge||!bridge.createAlarm){alert('Не удалось подключить системную функцию будильника. Перезапусти приложение или установи актуальную версию.');return}
