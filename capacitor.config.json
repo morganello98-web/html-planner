@@ -1,0 +1,6 @@
+{
+  "appId": "com.morganello98.planner",
+  "appName": "Планировщик режима",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
