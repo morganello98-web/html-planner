@@ -26,6 +26,7 @@ public class AlarmBridge extends Plugin {
         intent.putExtra(AlarmClock.EXTRA_HOUR, hour);
         intent.putExtra(AlarmClock.EXTRA_MINUTES, minute);
         intent.putExtra(AlarmClock.EXTRA_MESSAGE, label);
+        intent.putExtra(AlarmClock.EXTRA_SKIP_UI, false);
 
         // Use the Activity directly: resolveActivity() can return null on Android 11+
         // because package visibility hides matching clock apps from this package.
@@ -33,9 +34,16 @@ public class AlarmBridge extends Plugin {
             getActivity().startActivity(intent);
             call.resolve();
         } catch (ActivityNotFoundException e) {
-            call.reject("Android не нашёл приложение для создания будильников", e);
+            call.reject("Android не нашёл приложение для создания будильников. " +
+                    "Убедитесь, что на устройстве установлено приложение Часы.", e);
+        } catch (SecurityException e) {
+            call.reject("Отказано в доступе к приложению Часы. " +
+                    "Это может быть вызвано отсутствием queries в AndroidManifest (Android 11+). " +
+                    "Ошибка: " + e.getMessage(), e);
         } catch (Exception e) {
-            call.reject("Не удалось открыть экран создания будильника", e);
+            call.reject("Не удалось открыть экран создания будильника. " +
+                    "Тип ошибки: " + e.getClass().getSimpleName() + ". " +
+                    "Сообщение: " + e.getMessage(), e);
         }
     }
 }
