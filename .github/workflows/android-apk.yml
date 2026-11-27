@@ -33,6 +33,7 @@ jobs:
         run: |
           mkdir -p www
           cp "планировщик.html" www/index.html
+          npx esbuild android-native/alarm-bridge.js --bundle --format=iife --outfile=www/alarm-bridge.js
 
       - name: Generate Android project
         run: npx cap add android
