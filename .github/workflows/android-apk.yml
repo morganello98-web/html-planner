@@ -43,7 +43,7 @@ jobs:
           mkdir -p android/app/src/main/java/com/morganello98/planner
           cp android-native/AlarmBridge.java android/app/src/main/java/com/morganello98/planner/AlarmBridge.java
           cp android-native/MainActivity.java android/app/src/main/java/com/morganello98/planner/MainActivity.java
-          sed -i '/<application/i\    <uses-permission android:name="android.permission.SET_ALARM" />\n\n    <!-- Package visibility queries for Android 11+ (API 30+) -->\n    <queries>\n        <intent>\n            <action android:name="android.intent.action.SET_ALARM" />\n        </intent>\n    </queries>\n' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <!-- Standard Android alarm permission -->\n    <uses-permission android:name="android.permission.SET_ALARM" />\n    <!-- Samsung Clock specific permission -->\n    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />\n\n    <!-- Package visibility queries for Android 11+ (API 30+) -->\n    <queries>\n        <intent>\n            <action android:name="android.intent.action.SET_ALARM" />\n        </intent>\n    </queries>\n' android/app/src/main/AndroidManifest.xml
 
       - name: Sync Capacitor
         run: npx cap sync android
