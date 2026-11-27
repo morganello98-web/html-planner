@@ -1,0 +1,218 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Планировщик режима машиниста</title>
+<style>
+:root{--bg:#eef2f4;--c:#fff;--t:#14202b;--m:#5f6f7d;--b:#d9e1e6;--ac:#0f766e;--sleep:#4f5bd5;--work:#c2410c;--road:#d89b00;--prep:#f2c94c;--train:#1f9d55;--meal:#d6457f;--free:#cfd8dd;--rest:#9b8bd8}
+@media(prefers-color-scheme:dark){:root{--bg:#0e151b;--c:#16202a;--t:#e6edf2;--m:#93a4b3;--b:#26343f;--free:#2d3b47;--ac:#2dd4bf}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--t);padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:760px;margin:auto;padding:10px}
+nav{display:flex;gap:4px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:5}
+nav button{flex:1;padding:9px 2px;border:1px solid var(--b);background:var(--c);color:var(--t);border-radius:8px;font:inherit}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{background:var(--c);border:1px solid var(--b);border-radius:10px;padding:12px;margin:10px 0}
+h3{margin:0 0 8px;font-size:16px}small,.m{color:var(--m);font-size:13px}
+.row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px;cursor:pointer}.row.on{background:var(--b)}
+.row b{width:62px;font-size:13px;flex:none}.bar{position:relative;height:18px;background:var(--free);border-radius:4px;flex:1;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0}.row em{font-style:normal;width:22px;text-align:center;color:#c2410c;flex:none}
+.ev{display:flex;gap:8px;padding:7px 0;border-top:1px solid var(--b);align-items:flex-start}.ev:first-child{border:0}
+.dot{width:6px;align-self:stretch;border-radius:3px;flex:none}.ev .tm{width:104px;flex:none;font-variant-numeric:tabular-nums}
+.ev .bd{flex:1}.ev button,.b{border:1px solid var(--b);background:var(--c);color:var(--t);border-radius:7px;padding:5px 9px;font:inherit}
+.b.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.chips span{display:inline-block;margin:2px 4px 2px 0;padding:3px 8px;border-radius:12px;font-size:12px;background:var(--b)}
+.chips .ok{background:#d1f0dd;color:#14532d}.chips .no{background:#fbd5d5;color:#7f1d1d}
+@media(prefers-color-scheme:dark){.chips .ok{background:#14532d;color:#d1f0dd}.chips .no{background:#7f1d1d;color:#fbd5d5}}
+input,select,textarea{font:inherit;padding:7px;border:1px solid var(--b);border-radius:7px;background:var(--c);color:var(--t);max-width:100%}
+.g{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}.g input{width:110px}
+.lg span{display:inline-flex;align-items:center;gap:4px;margin-right:9px;font-size:12px}.lg i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.kv{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--b)}.kv:first-of-type{border:0}
+dialog{border:1px solid var(--b);border-radius:12px;background:var(--c);color:var(--t);width:min(92vw,420px);padding:14px}dialog::backdrop{background:#0008}.al{display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--b)}.al b{font-size:26px;font-variant-numeric:tabular-nums;width:76px;flex:none}
+</style></head><body><main><nav id="nav"></nav><div id="app"></div></main><dialog id="dlg"></dialog>
+<script>
+const DAY=1440,LS='planner_v1',P2=n=>String(n).padStart(2,'0');
+const D=m=>new Date(m*60000),T=m=>{const d=D(m);return P2(d.getHours())+':'+P2(d.getMinutes())};
+const K=m=>{const d=D(m);return d.getFullYear()+'-'+P2(d.getMonth()+1)+'-'+P2(d.getDate())};
+const day0=k=>{const[y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d).getTime()/60000};
+const dur=n=>{n=Math.round(n);return Math.floor(n/60)+'ч'+(n%60?' '+P2(n%60)+'м':'')};
+const hm=s=>{const m=String(s).match(/(\d{1,2}):(\d\d)/);return m?+m[1]*60+ +m[2]:null};
+const WD=['вс','пн','вт','ср','чт','пт','сб'],wd=m=>WD[D(m).getDay()],dm=m=>P2(D(m).getDate())+'.'+P2(D(m).getMonth()+1);
+const nextTod=(t,b)=>{let d=day0(K(t))+b;if(d<t)d+=DAY;return d};
+const pdate=s=>{let m=s.match(/(\d{4})-(\d\d)-(\d\d)/);if(m)return[+m[1],+m[2],+m[3]];m=s.match(/(\d\d)\.(\d\d)\.(\d{4})/);return m?[+m[3],+m[2],+m[1]]:null};
+const pdt=s=>{const d=pdate(s),t=hm(s);return d&&t!=null?new Date(d[0],d[1]-1,d[2]).getTime()/60000+t:null};
+const DEF={cfg:{to:90,from:90,prep:30,wake:45,sleepT:8,sleepMin:6,bed:'23:00',maxAwake:17,merge:6,trainDur:60,perWeek:7,bGap:120,shower:30,recov:20,after:30,sbuf:60,wbuf:20,maxRun:7,recSleep:2.5},shifts:[],ov:{sl:{},tr:{}},start:K(Date.now()/60000),days:14,sel:0,tab:'plan',eid:null};
+let S=JSON.parse(JSON.stringify(DEF));try{const o=JSON.parse(localStorage.getItem(LS));if(o){Object.assign(S,o);S.cfg=Object.assign({},DEF.cfg,o.cfg);if(o.ver!=2)Object.assign(S.cfg,{perWeek:7,bGap:120,after:30,sbuf:60,wbuf:20,maxRun:7});S.ver=2}}catch(e){}
+const save=()=>{try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}};
+
+/* ===== РАСЧЁТ (без обращения к DOM) ===== */
+function blocks(sh,c){const r=[];
+ for(const x of [...sh].sort((a,b)=>a.s-b.s)){const l=r[r.length-1];
+  if(l&&x.s-l.e<c.merge*60){l.e=Math.max(l.e,x.e);l.parts.push({s:x.s,e:x.e})}else r.push({s:x.s,e:x.e,parts:[{s:x.s,e:x.e}]})}
+ return r.map(b=>{b.night=false;for(let d=day0(K(b.s));d<b.e;d+=DAY)if(b.s<d+300&&b.e>d)b.night=true;
+  b.dep=b.s-c.to;b.p=b.dep-c.prep;b.home=b.e+c.from;return b})}
+function plan(){
+ const c=S.cfg,s0=day0(S.start),a0=s0-1080,hz=s0+(S.days+1)*DAY,bed=hm(c.bed),Dn=c.sleepT*60;
+ const bl=blocks(S.shifts,c).filter(b=>b.home>a0&&b.p<hz),conf=[],notes={};
+ const add=(m,t,x)=>conf.push({d:K(t),m,...x}),note=(t,m)=>{(notes[K(t)]=notes[K(t)]||new Set()).add(m)};
+ /* 1-5: сон по цепочке смен: вперёд по привычному отбою, назад от времени выезда */
+ const SL=[];let last=a0;
+ const gap=(a,b,pv,nx)=>{const L=[],t=a+(pv?45:0),lim=nx?nx.p-c.wake:b,arr=nx?nx.home:b;let lw=last;
+  for(let n=0;n<80;n++){if(n&&arr-lw<=c.maxAwake*60)break;const tt=n?lw:t;
+   const s=(!n&&pv&&pv.night)?tt:Math.max(tt,Math.min(nextTod(tt,bed),lw+c.maxAwake*60));
+   if(nx?s>lim-90:s>=b){if(nx&&n){const s2=Math.max(tt+300,lim-240);if(lim-s2>=90)L.push({s:s2,e:lim,nap:1})}break}const rc=!n&&pv&&pv.night,du=rc?c.recSleep*60:Dn;L.push({s,e:s+du,first:!n,rec:rc});lw=s+du}
+  if(nx&&L.length){const k=L[L.length-1];
+   if(k.e>lim){k.e=lim;if(!k.rec)k.s=Math.max(t,lim-Dn);k.cut=1;const p=L[L.length-2];if(p&&p.e>k.s-240){p.e=k.s-240;if(p.e-p.s<90)L.splice(L.length-2,1)}}
+   if(k.e-k.s<90)L.pop()}
+  if(nx&&!L.length&&nx.p>s0)add('Между сменами нет времени на сон',a);
+  L.forEach((x,i)=>{x.key=K(x.e)+'-'+i;x.note=[];const d=x.e-x.s;
+   if(x.rec)x.note.push(`Отсыпной день: сон ${dur(d)} после завтрака, основной сон — вечером.`);
+   if(x.nap)x.note.push(`Дополнительный сон перед ночной сменой (подъём ${T(x.e)}): иначе бодрствование превысило бы ${c.maxAwake}ч.`);else if(x.cut)x.note.push(`Сборы начинаются в ${T(nx.p)} → подъём не позже ${T(x.e)}, отбой в ${T(x.s)}`+(d<Dn-1?`; сон сокращён до ${dur(d)}`:'.'));
+   if(i<L.length-1&&!x.rec)x.note.push('Якорный сон: основной сон — вечером перед ранним выходом.');
+   const o=S.ov.sl[x.key];if(o&&o.e>o.s){x.s=o.s;x.e=o.e;x.man=1;x.note=['Изменено вручную; зависимые события пересчитаны.']}});
+  SL.push(...L);if(L.length)last=L[L.length-1].e};
+ let cur=a0,pvb=null;
+ for(const b of bl){if(b.p>cur)gap(cur,b.p,pvb,b);else add('Дорога и сборы пересекаются с предыдущей сменой',b.s);cur=Math.max(cur,b.home);pvb=b}
+ gap(cur,hz,pvb,null);
+ /* 6: окна бодрствования */
+ const occ=[...SL.map(x=>({s:x.s,e:x.e,t:'z',x})),...bl.map(b=>({s:b.p,e:b.home,t:'w',b}))].sort((a,b)=>a.s-b.s),W=[];
+ for(let i=0;i<occ.length-1;i++){const p=occ[i],q=occ[i+1];if(q.s<p.e-1)continue;if(q.s-p.e>=30)W.push({s:p.e,e:q.s,from:p.t,to:q.t,p,q})}
+ /* 7-8: тренировки */
+ const nights=bl.filter(b=>b.night),rec=t=>nights.some(b=>t>=b.home&&t<b.home+c.recov*60),cand={};
+ for(const f of W){const nxb=bl.find(x=>x.p>=f.e-1),light=nxb&&nxb.night&&nxb.p-f.e<720,d=Math.round(c.trainDur*(light?.6:1));
+  const why=r=>note(f.s,`Окно ${T(f.s)}–${T(f.e)}: ${r}`);
+  if(rec(f.s)||rec(f.s+c.after)){why('период восстановления после ночной смены — тренировки нет');continue}
+  const ps=f.from=='z'?f.p.x:SL.filter(x=>x.e<=f.s).pop();
+  if(ps&&!ps.nap&&!ps.rec&&ps.e-ps.s<c.sleepMin*60){why('сон был короче минимума — тренировки нет');continue}
+  const mo=f.from=='z'&&f.to=='w',evn=f.from=='w'&&f.to=='z',sx=mo?f.p.x:evn?f.q.x:null;let bs=null;
+  for(const st of [0,15,30,45]){if(st&&(!sx||sx.man||sx.nap||sx.rec||sx.e-sx.s-st<c.sleepMin*60))continue;
+   const fs=f.s-(mo?st:0),fe=f.e+(evn?st:0),m=fs+5,T0=f.from=='z'?m+c.bGap:fs+c.after;
+   for(const q of [1,.8,.6,.5]){const dd=q==1||d<=30?d:Math.max(30,Math.round(d*q/5)*5),X=T0+dd+c.shower;
+    if(X<=fe-(f.to=='w'?c.wbuf:c.sbuf)){const cost=d-dd+st*2;if(!bs||cost<bs.cost)bs={f,T:T0,d:dd,m:f.from=='z'?m:null,light,st,sx,mo,cost,X,fe};break}}}
+  if(!bs){why(`не помещается даже сокращённая тренировка с душем и запасом до ${f.to=='w'?'сборов':'сна'}`);continue}
+  if(rec(bs.T)){why('период восстановления после ночной смены — тренировки нет');continue}
+  bs.sc=Math.min(4,(bs.fe-bs.X)/60)-(light?2:0)-bs.cost/60;const k=K(bs.T);if(!cand[k]||cand[k].sc<bs.sc)cand[k]=bs}
+ const pick={};
+ for(let i=0;i<S.days;i+=7){const ds=[];for(let j=i;j<Math.min(i+7,S.days);j++){const k=K(s0+j*DAY);if(cand[k])ds.push(k)}
+  ds.sort((a,b)=>cand[b].sc-cand[a].sc);let n=0;
+  for(const k of ds){const run=dir=>{let r=0,t=day0(k);while(pick[K(t+=dir*DAY)])r++;return r};
+   if(n>=c.perWeek){note(day0(k),'Отдых: недельная цель по тренировкам уже выполнена');continue}
+   if(run(-1)+run(1)+1>c.maxRun){note(day0(k),`Отдых: не больше ${c.maxRun} тренировочных дней подряд`);continue}
+   pick[k]=1;n++}}
+ const TR=Object.keys(pick).map(k=>cand[k]);
+ for(const k in S.ov.tr){const o=S.ov.tr[k],i=TR.findIndex(t=>K(t.T)==k);if(i>=0)TR.splice(i,1);
+  if(o=='skip'){note(day0(k),'Отдых: выбран вручную');continue}
+  const f=W.find(f=>o.s>=f.s&&o.s+c.trainDur+c.shower<=f.e);
+  if(f)TR.push({f,T:o.s,d:c.trainDur,m:f.from=='z'?f.s+5:null,man:1});else add('Ручная тренировка пересекается со сном, работой или дорогой — не добавлена',day0(k),{man:1})}
+ for(const t of TR)if(t.st){const x=t.sx;if(t.mo){x.e-=t.st;t.f.s-=t.st}else{x.s+=t.st;t.f.e+=t.st}x.note.push(`Компромисс ради тренировки: ${t.mo?'подъём раньше':'отбой позже'} на ${t.st} мин, сон ${dur(x.e-x.s)}.`)}
+ SL.forEach(x=>{if(!x.nap&&!x.rec&&x.e-x.s<c.sleepMin*60)add(`Сон ${dur(x.e-x.s)} меньше минимума ${c.sleepMin}ч`,x.e)});
+ for(let i=1;i<SL.length;i++)if(SL[i].s-SL[i-1].e>c.maxAwake*60)add(`Бодрствование ${dur(SL[i].s-SL[i-1].e)} дольше ${c.maxAwake}ч`,SL[i-1].e);
+ /* 9: события, еда, свободное время */
+ const ev=[],E=(t,s,e,ti,x)=>{if(e>s)ev.push({t,s,e,ti,...x});else if(e<s)add('Отрицательная длительность: '+ti,s)};
+ bl.forEach(b=>{E('prep',b.p,b.dep,'Сборы');E('road',b.dep,b.s,'Дорога на работу');
+  b.parts.forEach((p,i)=>{E('work',p.s,p.e,(b.night?'Ночная смена':'Смена')+(b.parts.length>1?` (${i+1}/${b.parts.length})`:''));if(i)E('rest',b.parts[i-1].e,p.s,'Перерыв на работе')});
+  E('road',b.e,b.home,'Дорога домой')});
+ SL.forEach(x=>E('sleep',x.s,x.e,x.nap?'Дополнительный сон':'Сон',{note:x.note,key:x.key,man:x.man}));
+ const trw=new Map(TR.map(t=>[t.f,t]));
+ for(const f of W){const tr=trw.get(f),X=tr?tr.T+tr.d+c.shower:0;
+  if(tr){tr.X=X;const cm=[];if(tr.d<Math.round(c.trainDur*(tr.light?.6:1)))cm.push(`длительность сокращена до ${tr.d} мин`);if(tr.st)cm.push(`${tr.mo?'подъём раньше':'отбой позже'} на ${tr.st} мин`);
+   tr.notes=[f.from=='z'&&tr.m!=null?`Завтрак в ${T(tr.m)} — за ${dur(tr.T-tr.m)} до бега`:`Старт через ${dur(tr.T-f.s)} после возвращения домой`,`Душ закончится в ${T(X)}, до ${f.to=='w'?'сборов':'сна'} остаётся ${dur(f.e-X)}`];
+   if(tr.light)tr.notes.push('Короткая сессия: впереди ночная смена.');if(cm.length)tr.notes.push('Компромисс: '+cm.join(', ')+'.');if(tr.man)tr.notes=['Назначено вручную'];
+   E('train',tr.T,tr.T+tr.d,tr.light?'Лёгкий бег':'Бег',{note:tr.notes,man:tr.man});E('prep',tr.T+tr.d,X,'Душ и переодевание')}
+  const ms=[];
+  if(f.from=='w'&&f.to=='z'&&f.p.b.night&&f.q.x.rec&&f.e-f.s>=40)ms.push([f.s+10,'Завтрак']);
+  if(f.from=='z'&&!f.p.x.nap&&!f.p.x.rec&&f.e-f.s>=40)ms.push([tr&&tr.m!=null?tr.m:f.s+5,'Завтрак']);
+  if(f.to=='z'&&!f.q.x.nap&&!f.q.x.rec){const dm=tr?Math.max(X,f.e-150):Math.max(f.s+15,f.e-150);if(dm+30<=f.e-30&&(!ms.length||dm>=ms[0][0]+120))ms.push([dm,tr&&dm==X?'Ужин после тренировки':'Ужин'])}
+  ms.forEach(m=>E('meal',m[0],m[0]+30,m[1]));
+  const own=ev.filter(x=>x.s>=f.s&&x.e<=f.e&&x.t!='sleep').sort((a,b)=>a.s-b.s);let cs=f.s;
+  const fill=(a,b)=>{if(b-a<20)return;const r=rec(a),pre=f.to=='z'&&b==f.e;E(r||pre?'rest':'free',a,b,r?'Восстановление':pre?'Подготовка ко сну':'Свободное время')};
+  for(const x of own){fill(cs,x.s);cs=Math.max(cs,x.e)}fill(cs,f.e)}
+ const ne=ev.filter(x=>x.t!='free'&&x.t!='rest').sort((a,b)=>a.s-b.s);let me=null;
+ for(const x of ne){if(me&&x.s<me.e-1)add(`Пересечение: «${me.ti}» и «${x.ti}» (${T(x.s)})`,x.s);if(!me||x.e>me.e)me=x}
+ for(let i=0;i<S.days;i+=7){const a=s0+i*DAY,b=a+Math.min(7,S.days-i)*DAY,n=TR.filter(t=>t.T>=a&&t.T<b).length;
+  if(Math.min(7,S.days-i)==7&&n<c.perWeek)add(`Тренировок ${n} из ${c.perWeek} — смены и сон не оставляют безопасных окон`,a,{info:1})}
+ return{ev,SL,bl,TR,conf,notes,W,rec,s0}}
+
+/* ===== ИНТЕРФЕЙС ===== */
+let P;const COL={sleep:'sleep',work:'work',road:'road',prep:'prep',train:'train',meal:'meal',free:'free',rest:'rest'},NM={sleep:'Сон',work:'Работа',road:'Дорога',prep:'Сборы/душ',train:'Тренировка',meal:'Еда',free:'Свободное время',rest:'Восстановление'};
+const TABS=[['plan','План'],['shifts','Смены'],['weeks','Недели'],['set','Настройки']];
+const keys=()=>[...Array(S.days)].map((_,i)=>K(P.s0+i*DAY));
+function bar(k){const a=day0(k);return`<div class="bar">${P.ev.filter(x=>x.e>a&&x.s<a+DAY).map(x=>`<i style="left:${(Math.max(x.s,a)-a)/14.4}%;width:${(Math.min(x.e,a+DAY)-Math.max(x.s,a))/14.4}%;background:var(--${COL[x.t]})"></i>`).join('')}</div>`}
+function checks(k){const a=day0(k),cf=P.conf.filter(x=>x.d==k&&!x.info),sl=P.SL.filter(x=>K(x.e)==k&&!x.nap&&!x.rec),tr=P.TR.find(t=>K(t.T)==k),r=[];
+ r.push(['Сон не меньше минимума',!sl.some(x=>x.e-x.s<S.cfg.sleepMin*60)]);
+ r.push([`Бодрствование ≤ ${S.cfg.maxAwake} ч`,!cf.some(x=>x.m.startsWith('Бодрств'))]);
+ r.push(['Нет пересечений событий',!cf.some(x=>x.m.startsWith('Пересеч')||x.m.startsWith('Дорога')||x.m.startsWith('Ручная'))]);
+ if(tr){if(tr.f.from=='z'&&tr.m!=null)r.push(['Завтрак за 2–2,5 ч до бега',tr.T-tr.m>=120&&tr.T-tr.m<=150]);r.push(['Бег не после ночной смены',!P.rec(tr.T)]);r.push(['Бег не вплотную к работе/сну',tr.f.e-tr.X>=(tr.f.to=='w'?S.cfg.wbuf:S.cfg.sbuf)])}
+ return r}
+function vPlan(){const ks=keys(),sel=ks[Math.min(S.sel,ks.length-1)],a=day0(sel),b=a+DAY;
+ let h=`<div class="card"><div class="g"><span>Начало периода</span><input type="date" id="st" value="${S.start}" onchange="setStart(this.value)"><span>Горизонт, дней</span><select onchange="setDays(+this.value)">${[7,14,21,28].map(n=>`<option ${n==S.days?'selected':''}>${n}</option>`).join('')}</select></div>
+ <div class="lg" style="margin:10px 0 4px">${Object.keys(NM).map(t=>`<span><i style="background:var(--${t})"></i>${NM[t]}</span>`).join('')}</div>
+ ${ks.map((k,i)=>`<div class="row ${k==sel?'on':''}" onclick="selD(${i})"><b>${wd(day0(k))} ${dm(day0(k))}</b>${bar(k)}<em>${P.conf.some(x=>x.d==k&&!x.info)?'!':''}</em></div>`).join('')}
+ <small>Шкала — сутки 00:00–24:00. Нажмите на день для деталей.</small></div>`;
+ const sl=P.SL,wake=sl.find(x=>K(x.e)==sel),bd=sl.find(x=>x.s>=a+720&&x.s<a+720+DAY),tr=P.ev.find(x=>x.t=='train'&&K(x.s)==sel),bk=P.bl.find(b=>K(b.dep)==sel),
+  bf=P.ev.find(x=>x.t=='meal'&&wake&&x.s>=wake.e&&x.s<b),ch=checks(sel);
+ const why=[...(wake?wake.note:[]),...(bd&&bd!=wake?bd.note:[]),...(tr?tr.note:[]),...(P.notes[sel]||[])];
+ h+=`<div class="card"><div class="g"><h3>${wd(a)} ${dm(a)}</h3><span><button class="b p" onclick="alOpen()">⏰ Тайминги</button> <button class="b" onclick="selD(${Math.max(0,S.sel-1)})">◀</button> <button class="b" onclick="selD(${Math.min(S.days-1,S.sel+1)})">▶</button></span></div>
+ <div class="kv"><span>Подъём</span><b>${wake?T(wake.e):'—'}</b></div><div class="kv"><span>Отбой (вечер)</span><b>${bd?T(bd.s):'—'}</b></div>
+ <div class="kv"><span>Завтрак</span><b>${bf?T(bf.s):'—'}</b></div><div class="kv"><span>Окно тренировки</span><b>${tr?T(tr.s)+'–'+T(tr.e):'отдых'}</b></div>
+ <div class="kv"><span>Сборы / выезд</span><b>${bk?T(bk.p)+' / '+T(bk.dep):'нет смены'}</b></div>
+ ${why.length?`<p class="m"><b>Почему так:</b><br>${why.join('<br>')}</p>`:''}
+ <div class="chips">${ch.map(c=>`<span class="${c[1]?'ok':'no'}">${c[1]?'✓':'✗'} ${c[0]}</span>`).join('')}</div>
+ ${P.conf.filter(x=>x.d==sel).map(x=>`<p class="m" style="color:#c2410c">⚠ ${x.m}</p>`).join('')}</div>
+ <div class="card"><h3>События дня</h3>${P.ev.filter(x=>x.e>a&&x.s<b).sort((x,y)=>x.s-y.s).map(x=>`<div class="ev"><div class="dot" style="background:var(--${COL[x.t]})"></div><div class="tm">${x.s<a?'←':''}${T(Math.max(x.s,a))}–${T(Math.min(x.e,b))}${x.e>b?'→':''}<br><small>${dur(x.e-x.s)}</small></div><div class="bd">${x.ti}${x.man?' ✎':''}${x.note&&x.t!='sleep'?'':''}${x.note&&x.note.length&&x.t=='sleep'?`<br><small>${x.note.join(' ')}</small>`:''}</div>
+  ${x.t=='sleep'?`<button onclick="editSl('${x.key}')">✎</button>${x.man?`<button onclick="delSl('${x.key}')">↺</button>`:''}`:''}${x.t=='train'?`<button onclick="editTr('${sel}','${T(x.s)}')">✎</button><button onclick="skipTr('${sel}')">✕</button>`:''}</div>`).join('')||'<p class="m">Нет событий</p>'}
+ <p>${tr?'':`<button class="b" onclick="editTr('${sel}','07:00')">+ Тренировка вручную</button> `}${S.ov.tr[sel]?`<button class="b" onclick="delTr('${sel}')">↺ Авто</button>`:''}</p></div>`;return h}
+function vShifts(){const sh=[...S.shifts].sort((a,b)=>a.s-b.s),e=S.shifts.find(x=>x.id==S.eid),v=m=>m?K(m)+'T'+T(m):'';
+ return`<div class="card"><h3>${e?'Изменить интервал':'Добавить рабочий интервал'}</h3><div class="g"><span>Начало</span><input type="datetime-local" id="s1" value="${e?v(e.s):''}"><span>Конец</span><input type="datetime-local" id="s2" value="${e?v(e.e):''}"></div>
+ <p><button class="b p" onclick="saveShift()">${e?'Сохранить':'Добавить'}</button> ${e?'<button class="b" onclick="S.eid=null;R()">Отмена</button>':''}</p>
+ <small>Интервалы с перерывом менее ${S.cfg.merge} ч объединяются в одну смену. Ночь — смена, захватывающая 00:00–05:00.</small></div>
+ <div class="card"><h3>Смены (${sh.length})</h3>${sh.map(x=>`<div class="ev"><div class="bd">${wd(x.s)} ${dm(x.s)} ${T(x.s)} → ${wd(x.e)} ${dm(x.e)} ${T(x.e)} <small>(${dur(x.e-x.s)})</small></div><button onclick="editShift(${x.id})">✎</button><button onclick="delShift(${x.id})">✕</button></div>`).join('')||'<p class="m">Пока пусто — добавьте смены или импортируйте CSV.</p>'}</div>
+ <div class="card"><h3>Импорт графика</h3><small>Файл из программы смен (.xlsx) или .csv — берутся дата и два времени в строке; строки без времени (выходной, отпуск, б/л) пропускаются. Для .xlsx нужен интернет один раз. Либо скопируйте строки из Excel и вставьте сюда. Свои строки: <code>2026-12-01;22:00;07:00</code>. Конец раньше начала — следующие сутки.</small><br><input type="file" accept=".xlsx,.xls,.csv,.txt" onchange="impFile(this.files[0])" style="margin:6px 0;width:100%"><textarea id="csv" rows="4" style="width:100%;margin:6px 0" placeholder="Вставьте строки из Excel"></textarea><button class="b p" onclick="imp()">Импортировать вставленное</button> <button class="b" onclick="if(confirm('Удалить все смены?')){S.shifts=[];R()}">Очистить</button></div>`}
+function vWeeks(){let h='';
+ for(let i=0;i<S.days;i+=7){const n=Math.min(7,S.days-i),a=P.s0+i*DAY,b=a+n*DAY;
+  const sl=P.SL.filter(x=>x.e>a&&x.e<=b),tot=sl.reduce((q,x)=>q+x.e-x.s,0),tr=P.ev.filter(x=>x.t=='train'&&x.s>=a&&x.s<b),tt=tr.reduce((q,x)=>q+x.e-x.s,0),
+   nt=P.bl.filter(x=>x.night&&x.s>=a&&x.s<b).length,fr=[...Array(n)].filter((_,j)=>!P.ev.some(x=>x.t=='work'&&x.s<a+(j+1)*DAY&&x.e>a+j*DAY)).length,cf=P.conf.filter(x=>day0(x.d)>=a&&day0(x.d)<b);
+  h+=`<div class="card"><h3>${dm(a)} – ${dm(b-DAY)}</h3>${[['Сон всего',dur(tot)],['Средний сон за сутки',dur(tot/n)],['Тренировок',tr.length+' из '+S.cfg.perWeek],['Время тренировок',dur(tt)],['Ночных смен',nt],['Дней без работы',fr],['Конфликтов',cf.length]].map(r=>`<div class="kv"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
+  ${cf.map(x=>`<p class="m" style="color:#c2410c">⚠ ${dm(day0(x.d))}: ${x.m}</p>`).join('')}</div>`}
+ return h}
+const F=[['to','Дорога на работу, мин'],['from','Дорога домой, мин'],['prep','Сборы перед выходом, мин'],['wake','Подъём → начало сборов, мин'],['sleepT','Желаемый сон, ч'],['sleepMin','Минимальный сон, ч'],['recSleep','Сон в отсыпной день после ночной, ч'],['bed','Привычный отбой','time'],['maxAwake','Макс. бодрствование, ч'],['merge','Порог объединения интервалов, ч'],['trainDur','Длительность тренировки, мин'],['perWeek','Тренировок в неделю (7 = каждый день)'],['maxRun','Макс. тренировочных дней подряд'],['after','Бег после возвращения домой, мин'],['sbuf','Запас: душ → сон, мин'],['wbuf','Запас: душ → сборы, мин'],['bGap','Завтрак → утренний бег, мин'],['shower','Душ и переодевание, мин'],['recov','Восстановление после ночной, ч']];
+const vSet=()=>`<div class="card"><h3>Параметры</h3><div class="g">${F.map(f=>`<span>${f[0]=='bGap'?'Завтрак → утренний бег, мин (120–150)':f[1]}</span><input ${f[2]=='time'?'type="time"':'type="number" step="any" min="0"'} value="${S.cfg[f[0]]}" onchange="setCfg('${f[0]}',this.value)">`).join('')}</div>
+ <p><button class="b" onclick="if(confirm('Сбросить настройки и ручные правки?')){S.cfg={...DEF.cfg};S.ov={sl:{},tr:{}};R()}">Сбросить настройки</button></p></div>`;
+function R(){P=plan();document.getElementById('nav').innerHTML=TABS.map(t=>`<button class="${S.tab==t[0]?'on':''}" onclick="S.tab='${t[0]}';R()">${t[1]}</button>`).join('');
+ document.getElementById('app').innerHTML={plan:vPlan,shifts:vShifts,weeks:vWeeks,set:vSet}[S.tab]();save()}
+/* действия */
+const selD=i=>{S.sel=i;R()},setStart=v=>{if(v){S.start=v;S.sel=0;R()}},setDays=n=>{S.days=n;S.sel=0;R()};
+function setCfg(k,v){if(k=='bed'){if(hm(v)!=null)S.cfg.bed=v}else{v=+v;if(!(v>=0)||(k!='perWeek'&&v==0&&k!='prep'&&k!='shower'))return R();S.cfg[k]=v}
+ if(S.cfg.sleepMin>S.cfg.sleepT)S.cfg.sleepMin=S.cfg.sleepT;R()}
+function saveShift(){const s=pdt(document.getElementById('s1').value),e=pdt(document.getElementById('s2').value);
+ if(s==null||e==null)return alert('Укажите начало и конец');if(e<=s)return alert('Конец должен быть позже начала');
+ if(S.eid)S.shifts=S.shifts.filter(x=>x.id!=S.eid);S.shifts.push({id:Date.now()+Math.floor(Math.random()*1e3),s,e});S.eid=null;R()}
+const editShift=id=>{S.eid=id;R()},delShift=id=>{S.shifts=S.shifts.filter(x=>x.id!=id);R()};
+const tm=c=>{if(typeof c=='number'&&c>=0&&c<1)return Math.round(c*1440);const m=String(c).trim().match(/^(\d{1,2}):(\d\d)(:\d\d)?$/);return m?+m[1]*60+ +m[2]:null};
+function rows2(rows){let n=0,skip=0,dup=0,off=0;
+ for(const r of rows){const c=r.map(x=>x==null?'':x),dts=c.map(x=>typeof x=='string'?pdt(x):null).filter(x=>x!=null);let s,e;
+  if(dts.length>=2){s=dts[0];e=dts[1]}else{const di=c.findIndex(x=>typeof x=='string'&&pdate(x)),ts=c.map(tm).filter(x=>x!=null);
+   if(di<0||ts.length<2){if(di>=0)off++;continue}const d=pdate(c[di]);s=new Date(d[0],d[1]-1,d[2]).getTime()/60000+ts[0];e=new Date(d[0],d[1]-1,d[2]).getTime()/60000+ts[1];if(e<=s)e+=DAY}
+  if(e<=s||e-s>DAY){skip++;continue}
+  if(S.shifts.some(x=>x.s==s&&x.e==e)){dup++;continue}S.shifts.push({id:Date.now()+S.shifts.length,s,e});n++}
+ alert(`Добавлено смен: ${n}`+(dup?`, уже были: ${dup}`:'')+(off?`, дней без смены (выходные, отпуск и т.п.): ${off}`:'')+(skip?`, строк с ошибками: ${skip}`:''));R()}
+const imp=()=>rows2(document.getElementById('csv').value.split(/\n/).map(l=>l.split(/[;,\t]/).map(x=>x.trim())));
+function impFile(f){if(!f)return;const rd=new FileReader();
+ if(/\.(csv|txt)$/i.test(f.name)){rd.onload=()=>rows2(String(rd.result).split(/\r?\n/).map(l=>l.split(/[;,\t]/).map(x=>x.trim())));rd.readAsText(f);return}
+ const go=()=>{rd.onload=()=>{try{const wb=XLSX.read(rd.result,{type:'array'});rows2(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''}))}catch(e){alert('Не удалось прочитать файл: '+e.message)}};rd.readAsArrayBuffer(f)};
+ if(window.XLSX)return go();const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=go;sc.onerror=()=>alert('Не загрузилась библиотека чтения .xlsx (нужен интернет). Откройте файл в Excel, скопируйте строки и вставьте в поле ниже.');document.head.appendChild(sc)}
+function editSl(key){const x=P.SL.find(y=>y.key==key);if(!x)return;const a=prompt('Отбой (ЧЧ:ММ)',T(x.s));if(a===null)return;const b=prompt('Подъём (ЧЧ:ММ)',T(x.e));if(b===null)return;
+ const h1=hm(a),h2=hm(b);if(h1==null||h2==null)return alert('Формат: ЧЧ:ММ');let s=day0(K(x.s))+h1;if(s<x.s-720)s+=DAY;if(s>x.s+720)s-=DAY;
+ const e=s+((h2-h1+DAY)%DAY);if(e<=s)return alert('Подъём должен отличаться от отбоя');S.ov.sl[key]={s,e};R()}
+const delSl=k=>{delete S.ov.sl[k];R()},delTr=k=>{delete S.ov.tr[k];R()},skipTr=k=>{S.ov.tr[k]='skip';R()};
+function editTr(k,cur){const v=prompt('Начало тренировки (ЧЧ:ММ)',cur);if(v===null)return;const h=hm(v);if(h==null)return alert('Формат: ЧЧ:ММ');S.ov.tr[k]={s:day0(k)+h};R();
+ if(P.conf.some(x=>x.man))alert('Тренировка не добавлена: в это время сон, работа или дорога, либо не хватает времени на душ.')}
+function alarms(k){const A=[];
+ for(const x of P.SL){A.push({t:x.e,l:x.rec?'Подъём после отсыпного сна':x.nap?'Подъём после доп. сна':'Подъём',n:'сон '+dur(x.e-x.s)});
+  if(!x.rec&&!x.nap)A.push({t:x.s-45,l:'Подготовка к отбою',n:'душ, ужин закончен, всё готово ко сну'});
+  A.push({t:x.s,l:x.rec?'Отбой на отсыпной сон':x.nap?'Дополнительный сон':'Отбой',n:'спать до '+T(x.e)})}
+ P.ev.filter(x=>x.t=='train').forEach(x=>A.push({t:x.s,l:'Начало тренировки',n:dur(x.e-x.s)+(x.man?' (вручную)':'')}));
+ P.bl.forEach(b=>{A.push({t:b.p,l:'Начало сборов',n:`смена ${T(b.s)}–${T(b.e)}`});A.push({t:b.dep,l:'Выезд на работу',n:`на месте к ${T(b.s)}`})});
+ return A.filter(a=>K(a.t)==k).sort((a,b)=>a.t-b.t)}
+const DL=()=>document.getElementById('dlg'),curK=()=>keys()[Math.min(S.sel,S.days-1)];
+function alDraw(){const k=curK(),A=alarms(k),a=day0(k);
+ DL().innerHTML=`<div class="g"><h3>Будильники: ${wd(a)} ${dm(a)}</h3><span><button class="b" onclick="alNav(-1)">◀</button> <button class="b" onclick="alNav(1)">▶</button></span></div>`+(A.map(x=>`<div class="al"><b>${T(x.t)}</b><div>${x.l}<br><small>${x.n}</small></div></div>`).join('')||'<p class="m">В этот день будильники не нужны.</p>')+`<p><button class="b p" onclick="alCopy()">Скопировать</button> <button class="b" onclick="DL().close()">Закрыть</button></p>`}
+const alOpen=()=>{alDraw();DL().showModal()},alNav=d=>{S.sel=Math.max(0,Math.min(S.days-1,S.sel+d));R();alDraw()};
+function alCopy(){const t=alarms(curK()).map(a=>`${T(a.t)} ${a.l}`).join('\n'),ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');alert('Скопировано')}catch(e){prompt('Скопируйте:',t)}ta.remove()}
+R();
+</script></body></html>
