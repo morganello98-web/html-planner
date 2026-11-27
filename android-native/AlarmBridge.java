@@ -25,7 +25,6 @@ public class AlarmBridge extends Plugin {
         intent.putExtra(AlarmClock.EXTRA_HOUR, hour);
         intent.putExtra(AlarmClock.EXTRA_MINUTES, minute);
         intent.putExtra(AlarmClock.EXTRA_MESSAGE, label);
-        intent.putExtra(AlarmClock.EXTRA_SKIP_UI, true);
 
         if (intent.resolveActivity(getContext().getPackageManager()) == null) {
             call.reject("На устройстве не найдено приложение для создания будильников");
